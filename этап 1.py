@@ -6,19 +6,30 @@ from tkinter import scrolledtext
 
 
 class Shell:
+    """Класс командной оболочки для обработки пользовательских команд."""
+
     def __init__(self):
-        self.username = os.environ.get("USERNAME",os.environ.get("USER", "user"))
+        """Инициализирует оболочку, определяет имя пользователя и компьютера."""
+        self.username = os.environ.get("USERNAME", os.environ.get("USER", "user"))
         self.hostname = socket.gethostname()
         self.running = True
 
     def prompt(self):
+        """Формирует приглашение командной строки с именем пользователя и компьютера."""
         return f"{self.username}@{self.hostname}$ "
 
     def parse(self, line):
+        """Обрабатывает строку команды, подставляет переменные окружения и разделяет аргументы."""
         line = os.path.expandvars(line)
         return shlex.split(line)
 
     def execute(self, line):
+        """Обрабатывает введённую команду и возвращает результат или сообщение об ошибке.
+
+        Поддерживает команды ls, cd и exit. Команды ls и cd выводят своё название
+        и переданные аргументы. Команда exit завершает работу оболочки при отсутствии
+        дополнительных аргументов.
+        """
         line = line.strip()
         if not line:
             return ""
@@ -48,13 +59,23 @@ class Shell:
 
 
 class ShellGUI:
+    """Класс графического интерфейса эмулятора командной оболочки."""
 
     def __init__(self, shell):
+        """Создаёт окно программы, область вывода и поле ввода команд.
+
+        Args:
+            shell: Объект командной оболочки для обработки введённых команд.
+        """
         self.shell = shell
         self.root = tk.Tk()
-        self.root.title(f"Эмулятор - "f"[{shell.username}@{shell.hostname}]")
+        self.root.title(f"Эмулятор - [{shell.username}@{shell.hostname}]")
         self.root.geometry("800x500")
-        self.output = scrolledtext.ScrolledText(self.root, wrap=tk.WORD,font=("Arial", 12))
+        self.output = scrolledtext.ScrolledText(
+            self.root,
+            wrap=tk.WORD,
+            font=("Arial", 12)
+        )
         self.output.pack(
             fill=tk.BOTH,
             expand=True,
@@ -84,15 +105,28 @@ class ShellGUI:
         self.entry.focus()
 
     def print_text(self, text):
-        self.output.insert(tk.END,text)
+        """Выводит переданный текст в окно программы и прокручивает его вниз.
+
+        Args:
+            text: Строка для отображения в области вывода.
+        """
+        self.output.insert(tk.END, text)
         self.output.see(tk.END)
 
     def show_prompt(self):
+        """Отображает приглашение командной строки."""
         self.print_text(self.shell.prompt())
 
     def on_enter(self, event=None):
+        """Обрабатывает нажатие Enter, выполняет команду и выводит результат.
+
+        После завершения работы оболочки отключает поле ввода.
+
+        Args:
+            event: Событие Tkinter, связанное с нажатием клавиши Enter.
+        """
         line = self.entry.get()
-        self.entry.delete(0,tk.END)
+        self.entry.delete(0, tk.END)
         self.print_text(line + "\n")
         result = self.shell.execute(line)
         if result:
@@ -104,10 +138,11 @@ class ShellGUI:
 
 
 def main():
-
+    """Создаёт командную оболочку и запускает графический интерфейс."""
     shell = Shell()
     gui = ShellGUI(shell)
     gui.root.mainloop()
+
 
 if __name__ == "__main__":
     main()
