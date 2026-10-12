@@ -1,8 +1,34 @@
-# Стартовый скрипт
-# Строка с решётки — комментарий
+# Команды этапа 4: ls, cd, tree, date
+# Комментарий Python пропускается
 
 ls
-ls "docs files"
+ls -a
+ls -l
+ls -la /home
+ls /home /tmp
+ls /missing
+ls -x
+
 cd /home
+cd user
+cd ..
+cd -
+cd /home/user/projects/lab.txt
+cd /no/such
+cd a b
+
+tree
+tree -a
+tree -L 1
+tree -L 2 /home
+tree /missing
+tree -Z
+
+date
+date -u
+date +%Y
+date -u +%H
+date --bad
+
 foo
 exit 1
