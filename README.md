@@ -1,3 +1,7 @@
 Эмулятор оболочки
 
-Этап 4: команды ls, cd, tree и date работают по VFS в памяти.
+Весь код в emulator.py.
+Команды: ls, cd, tree, date, touch, cp, exit.
+VFS живёт в памяти и читается из JSON.
+
+Запуск: run.bat --vfs vfs\deep.json --script scripts\startup.txt

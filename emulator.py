@@ -103,6 +103,10 @@ class Shell:
             return self.cmd_tree(rest)
         if command == "date":
             return self.cmd_date(rest)
+        if command == "touch":
+            return self.cmd_touch(rest)
+        if command == "cp":
+            return self.cmd_cp(rest)
         if command == "exit":
             return self.cmd_exit(rest)
         return f"Ошибка: неизвестная команда '{command}'"
@@ -284,6 +288,117 @@ class Shell:
         except ValueError as error:
             return f"date: {error}"
 
+    def cmd_touch(self, args):
+        no_create = False
+        paths = []
+        for arg in args:
+            if arg == "-c":
+                no_create = True
+            elif arg.startswith("-") and arg != "-":
+                return f"touch: неверный аргумент: {arg}"
+            else:
+                paths.append(arg)
+        if not paths:
+            return "touch: не указан файл"
+        messages = []
+        for path in paths:
+            message = self.touch_one(path, no_create)
+            if message:
+                messages.append(message)
+        return "\n".join(messages)
+
+    def touch_one(self, path, no_create):
+        parent_path, name = self.split_parent(path)
+        if name in ("", ".", ".."):
+            return f"touch: неверное имя: {path}"
+        parent = self.parent_node(parent_path)
+        if parent is None or not parent.is_dir():
+            return f"touch: нет такого файла или каталога: {path}"
+        if name in parent.children or no_create:
+            return ""
+        node = Node(name, "file")
+        node.parent = parent
+        parent.children[name] = node
+        return ""
+
+    def cmd_cp(self, args):
+        recursive = False
+        paths = []
+        for arg in args:
+            if arg == "-r":
+                recursive = True
+            elif arg.startswith("-") and arg != "-":
+                return f"cp: неверный аргумент: {arg}"
+            else:
+                paths.append(arg)
+        if len(paths) < 2:
+            return "cp: недостаточно аргументов"
+        dest = self.resolve(paths[-1])
+        sources = paths[:-1]
+        if dest is not None and dest.is_dir():
+            messages = [self.copy_into(src, dest, recursive) for src in sources]
+            return "\n".join(message for message in messages if message)
+        if len(sources) != 1:
+            return "cp: цель не является каталогом"
+        return self.copy_as(sources[0], paths[-1], dest, recursive)
+
+    def copy_into(self, src_path, dest_dir, recursive):
+        source = self.resolve(src_path)
+        if source is None:
+            return f"cp: нет такого файла или каталога: {src_path}"
+        if source.is_dir() and not recursive:
+            return f"cp: {src_path}: каталог, укажите -r"
+        if self.is_inside(dest_dir, source):
+            return "cp: нельзя копировать каталог в самого себя"
+        existing = dest_dir.children.get(source.name)
+        if existing is source:
+            return "cp: нельзя копировать файл сам в себя"
+        if existing is not None and existing.is_dir():
+            return f"cp: {source.name}: каталог уже существует"
+        self.put_copy(dest_dir, source, source.name)
+        return ""
+
+    def copy_as(self, src_path, dest_path, dest, recursive):
+        source = self.resolve(src_path)
+        if source is None:
+            return f"cp: нет такого файла или каталога: {src_path}"
+        if source.is_dir() and not recursive:
+            return f"cp: {src_path}: каталог, укажите -r"
+        if dest is source:
+            return "cp: нельзя копировать файл сам в себя"
+        parent_path, name = self.split_parent(dest_path)
+        if name in ("", ".", ".."):
+            return f"cp: неверное имя: {dest_path}"
+        parent = self.parent_node(parent_path)
+        if parent is None or not parent.is_dir():
+            return f"cp: нет такого файла или каталога: {dest_path}"
+        if source.is_dir() and self.is_inside(parent, source):
+            return "cp: нельзя копировать каталог в самого себя"
+        self.put_copy(parent, source, name)
+        return ""
+
+    def put_copy(self, parent, source, name):
+        copied = self.clone(source, name)
+        copied.parent = parent
+        parent.children[name] = copied
+
+    def clone(self, node, name):
+        copied = Node(name, node.kind)
+        copied.content = node.content
+        for child in node.children.values():
+            child_copy = self.clone(child, child.name)
+            child_copy.parent = copied
+            copied.children[child_copy.name] = child_copy
+        return copied
+
+    def is_inside(self, node, ancestor):
+        current = node
+        while current is not None:
+            if current is ancestor:
+                return True
+            current = current.parent
+        return False
+
     def cmd_exit(self, args):
         if args:
             return "Ошибка: exit не принимает аргументы"
@@ -415,7 +530,7 @@ def main():
     shell = Shell(root)
     gui = ShellGUI(shell)
     gui.print_text("Эмулятор UNIX-подобной командной оболочки\n")
-    gui.print_text("Доступные команды: ls, cd, tree, date, exit\n\n")
+    gui.print_text("Доступные команды: ls, cd, tree, date, touch, cp, exit\n\n")
     gui.print_text(f"[debug] Путь к VFS: {show_value(args.vfs)}\n")
     gui.print_text(f"[debug] Стартовый скрипт: {show_value(args.script)}\n")
     gui.print_text(f"[debug] {vfs_note}\n\n")

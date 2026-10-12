@@ -30,5 +30,22 @@ date +%Y
 date -u +%H
 date --bad
 
+cd /
+touch /tmp/a.txt /tmp/b.txt
+touch /tmp/a.txt
+touch -c /tmp/nope.txt
+touch /no/such.txt
+touch
+touch -z /tmp/a.txt
+ls /tmp
+cp /home/readme.txt /tmp/copy.txt
+cp /home/readme.txt /tmp
+cp /home /tmp/home_copy
+cp -r /home /tmp/home_copy
+cp -r /home /home/user
+cp /missing /tmp
+cp /tmp/a.txt
+ls -l /tmp
+
 foo
 exit 1
