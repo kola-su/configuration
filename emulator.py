@@ -1,3 +1,4 @@
+import argparse
 import os
 import shlex
 import socket
@@ -100,9 +101,6 @@ class ShellGUI:
         self.entry = tk.Entry(self.root, font=("Arial", 12))
         self.entry.pack(fill=tk.X, padx=10, pady=(0, 10))
         self.entry.bind("<Return>", self.on_enter)
-        self.print_text("Эмулятор UNIX-подобной командной оболочки\n")
-        self.print_text("Доступные команды: ls, cd, exit\n\n")
-        self.show_prompt()
         self.entry.focus()
 
     def print_text(self, text):
@@ -124,10 +122,48 @@ class ShellGUI:
         else:
             self.entry.config(state=tk.DISABLED)
 
+    def run_script(self, path):
+        try:
+            with open(path, encoding="utf-8-sig") as handle:
+                text = handle.read()
+        except OSError as error:
+            self.print_text(f"Ошибка скрипта: {error}\n")
+            return
+        for raw in text.splitlines():
+            line = raw.strip()
+            if not line or line.startswith("#"):
+                continue
+            if not self.shell.running:
+                return
+            self.print_text(self.shell.prompt() + line + "\n")
+            result = self.shell.execute(line)
+            if result:
+                self.print_text(result + "\n")
+        if not self.shell.running:
+            self.entry.config(state=tk.DISABLED)
+
+
+def show_value(value):
+    if value:
+        return value
+    return "не задан"
+
 
 def main():
+    parser = argparse.ArgumentParser(description="Эмулятор UNIX-подобной оболочки")
+    parser.add_argument("--vfs", help="Путь к JSON-файлу VFS")
+    parser.add_argument("--script", help="Путь к стартовому скрипту")
+    args = parser.parse_args()
     shell = Shell()
     gui = ShellGUI(shell)
+    gui.print_text("Эмулятор UNIX-подобной командной оболочки\n")
+    gui.print_text("Доступные команды: ls, cd, exit\n\n")
+    gui.print_text(f"[debug] Путь к VFS: {show_value(args.vfs)}\n")
+    gui.print_text(f"[debug] Стартовый скрипт: {show_value(args.script)}\n\n")
+    if args.script:
+        gui.run_script(args.script)
+    if shell.running:
+        gui.show_prompt()
     gui.root.mainloop()
 
 
