@@ -1,4 +1,6 @@
 import argparse
+import base64
+import json
 import os
 import shlex
 import socket
@@ -6,14 +8,38 @@ import tkinter as tk
 from tkinter import scrolledtext
 
 
+class Node:
+    def __init__(self, name, kind):
+        self.name = name
+        self.kind = kind
+        self.content = b""
+        self.children = {}
+        self.parent = None
+
+    def is_dir(self):
+        return self.kind == "directory"
+
+
 class Shell:
-    def __init__(self):
+    def __init__(self, root=None):
         self.username = os.environ.get("USERNAME", os.environ.get("USER", "user"))
         self.hostname = socket.gethostname()
         self.running = True
+        self.root = root or Node("", "directory")
+        self.cwd = self.root
 
     def prompt(self):
-        return f"{self.username}@{self.hostname}$ "
+        return f"{self.username}@{self.hostname}:{self.abs_path(self.cwd)}$ "
+
+    def abs_path(self, node):
+        if node.parent is None:
+            return "/"
+        names = []
+        current = node
+        while current.parent is not None:
+            names.append(current.name)
+            current = current.parent
+        return "/" + "/".join(reversed(names))
 
     def expand(self, line):
         result = []
@@ -143,6 +169,54 @@ class ShellGUI:
             self.entry.config(state=tk.DISABLED)
 
 
+
+def build_node(name, data, parent):
+    kind = data.get("type")
+    node = Node(name, kind)
+    node.parent = parent
+    if kind == "file":
+        raw = data.get("content", "")
+        if data.get("encoding") == "base64":
+            node.content = base64.b64decode(raw)
+        else:
+            node.content = str(raw).encode("utf-8")
+        return node
+    for child in data.get("children", []):
+        item = build_node(child["name"], child, node)
+        node.children[item.name] = item
+    return node
+
+
+def load_vfs(path):
+    if not path:
+        return Node("", "directory"), "VFS в памяти: пустой корень"
+    try:
+        with open(path, encoding="utf-8-sig") as handle:
+            data = json.load(handle)
+    except FileNotFoundError:
+        return Node("", "directory"), f"Ошибка загрузки VFS: файл не найден: {path}"
+    except json.JSONDecodeError as error:
+        return Node("", "directory"), f"Ошибка загрузки VFS: некорректный JSON: {error}"
+    if "root" not in data:
+        return Node("", "directory"), "Ошибка загрузки VFS: в JSON нет root"
+    root = build_node("", data["root"], None)
+    root.name = ""
+    return root, f"VFS в памяти: узлов={count_nodes(root)}, глубина={tree_depth(root)}"
+
+
+def count_nodes(node):
+    total = 1
+    for child in node.children.values():
+        total += count_nodes(child)
+    return total
+
+
+def tree_depth(node):
+    if not node.children:
+        return 1
+    return 1 + max(tree_depth(child) for child in node.children.values())
+
+
 def show_value(value):
     if value:
         return value
@@ -154,12 +228,14 @@ def main():
     parser.add_argument("--vfs", help="Путь к JSON-файлу VFS")
     parser.add_argument("--script", help="Путь к стартовому скрипту")
     args = parser.parse_args()
-    shell = Shell()
+    root, note = load_vfs(args.vfs)
+    shell = Shell(root)
     gui = ShellGUI(shell)
     gui.print_text("Эмулятор UNIX-подобной командной оболочки\n")
     gui.print_text("Доступные команды: ls, cd, exit\n\n")
     gui.print_text(f"[debug] Путь к VFS: {show_value(args.vfs)}\n")
-    gui.print_text(f"[debug] Стартовый скрипт: {show_value(args.script)}\n\n")
+    gui.print_text(f"[debug] Стартовый скрипт: {show_value(args.script)}\n")
+    gui.print_text(f"[debug] {note}\n\n")
     if args.script:
         gui.run_script(args.script)
     if shell.running:
